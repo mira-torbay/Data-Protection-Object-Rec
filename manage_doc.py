@@ -1,9 +1,40 @@
 import webbrowser
 import os
 from scan import scan
-import time  # remember to remove this, not needed for actual algorithm
+import tkinter as tk
+from tkinter import filedialog, messagebox
 
-webbrowser.open_new(r'file://C:\Users\mirat\Downloads\Mira_Torbay_Technical_Resume_June_2025.pdf')
+filename = ""
+
+
+def doc_picker():
+    filetypes = [("PDF files", "*.pdf")]
+
+    global filename
+    filename = filedialog.askopenfilename(
+        title="Select a Document",
+        filetypes=filetypes
+    )
+
+    if filename:
+        label.config(text=f"Selected File:\n{filename}")
+    else:
+        label.config(text="No file selected.")
+
+
+root = tk.Tk()
+root.title("Document Selector")
+root.geometry("400x200")
+
+label = tk.Label(root, text="Please select a document file", wraplength=350, justify="center")
+label.pack(pady=20)
+
+btn = tk.Button(root, text="Browse", command=doc_picker)
+btn.pack(pady=10)
+
+root.mainloop()
+
+webbrowser.open_new(filename)
 file_status = "open"
 
 if not scan():
