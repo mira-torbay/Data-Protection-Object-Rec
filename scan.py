@@ -20,8 +20,8 @@ while True:
         print("No phone or camera detected.")
 
     # draw boxes
-    results.render()  # adds boxes to frame
-    cv2.imshow("Detection", results.ims[0])
+    annotated_frame = results.plot()
+    cv2.imshow("Detection", annotated_frame)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
