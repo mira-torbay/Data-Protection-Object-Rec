@@ -1,5 +1,5 @@
 opencv-python
 numpy
 ultralytics
-pdf2image
 Pillow
+PyMuPDF
