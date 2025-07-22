@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import fitz  # PyMuPDF
 from PIL import Image, ImageTk
+import cv2
 
 filename = ""
 pdf_images = []
@@ -28,6 +29,24 @@ def display_page(page_num):
         page_label.config(text=f"Page {current_page+1} of {len(pdf_labels)}")
         # Scroll to top
         canvas.yview_moveto(0)
+        # Update scrollregion
+        canvas.update_idletasks()
+        canvas.configure(scrollregion=canvas.bbox("all"))
+
+def is_camera_running():
+    print("Starting camera...")
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("Camera failed to start.")
+        return False
+    ret, _ = cap.read()
+    cap.release()
+    if ret:
+        print("Camera running.")
+        return True
+    else:
+        print("Camera failed to provide frame.")
+        return False
 
 # --- PDF Loading ---
 def doc_picker():
@@ -38,11 +57,16 @@ def doc_picker():
         filetypes=filetypes
     )
     if filename:
+        print("PDF selected")
         label.config(text=f"Selected File:\n{filename}")
-        # start scanning after PDF is selected, before opening
-        if scan_job is None:
-            scan_job = root.after(2000, scan_and_monitor)
-        load_pdf(filename)
+        # Check camera before opening PDF
+        if is_camera_running():
+            # start scanning after PDF is selected, before opening
+            if scan_job is None:
+                scan_job = root.after(2000, scan_and_monitor)
+            load_pdf(filename)
+        else:
+            messagebox.showerror("Camera Error", "Could not start camera. Please check your webcam.")
     else:
         label.config(text="No file selected.")
 
@@ -128,6 +152,21 @@ canvas.create_window((0, 0), window=canvas_frame, anchor="nw")
 def on_canvas_configure(event):
     canvas.configure(scrollregion=canvas.bbox("all"))
 canvas_frame.bind("<Configure>", on_canvas_configure)
+
+# Mouse wheel scrolling
+
+def _on_mousewheel(event):
+    # For Windows and MacOS
+    canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+canvas.bind_all("<MouseWheel>", _on_mousewheel)
+# For Linux (event.num 4/5)
+def _on_mousewheel_linux(event):
+    if event.num == 4:
+        canvas.yview_scroll(-1, "units")
+    elif event.num == 5:
+        canvas.yview_scroll(1, "units")
+canvas.bind_all("<Button-4>", _on_mousewheel_linux)
+canvas.bind_all("<Button-5>", _on_mousewheel_linux)
 
 nav_frame = tk.Frame(root)
 nav_frame.pack(pady=5)
