@@ -1,0 +1,17 @@
+__pycache__/
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+
+# Model files
+yolov8n.pt 
