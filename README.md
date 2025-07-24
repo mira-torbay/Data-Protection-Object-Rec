@@ -1,6 +1,6 @@
 # Object Recognition PDF Viewer
 
-This application serves as a demonstration of a potential method of preventing unauthorized copying or sharing of a document via the "analog gap" -- physically recording the screen with a separate device. If a phone or camera is detected by the device's webcam while a PDF is open, the document will be closed automatically. The PDF is displayed inside the app with scrolling and page navigation.
+This application serves as a demonstration of a potential method of preventing unauthorized copying or sharing of a document via the "analog hole" -- physically recording the screen with a separate device. If a phone or camera is detected by the device's webcam while a PDF is open, the document will be closed automatically. The PDF is displayed inside the app with scrolling and page navigation.
 
 ## Features
 - Select and view PDF files inside the app
