@@ -11,27 +11,31 @@ pdf_images = []
 pdf_labels = []
 current_page = 0
 scan_job = None
+canvas_image_id = None  # current image on the canvas
+camera = None  # global camera object
 
 # --- PDF Display Helpers ---
 def clear_pdf_display():
-    for lbl in pdf_labels:
-        lbl.destroy()
-    pdf_labels.clear()
+    global canvas_image_id, pdf_images, current_page
+    if canvas_image_id is not None:
+        canvas.delete(canvas_image_id)
+        canvas_image_id = None
     pdf_images.clear()
+    current_page = 0
 
 def display_page(page_num):
-    global pdf_labels, current_page
-    if 0 <= page_num < len(pdf_labels):
-        for i, lbl in enumerate(pdf_labels):
-            lbl.pack_forget()
-        pdf_labels[page_num].pack()
+    global pdf_images, current_page, canvas_image_id
+    if 0 <= page_num < len(pdf_images):
+        if canvas_image_id is not None:
+            canvas.delete(canvas_image_id)
+        img = pdf_images[page_num]
+        # Center image horizontally
+        canvas_image_id = canvas.create_image(canvas.winfo_width()//2, 0, anchor="n", image=img)
         current_page = page_num
-        page_label.config(text=f"Page {current_page+1} of {len(pdf_labels)}")
-        # Scroll to top
-        canvas.yview_moveto(0)
-        # Update scrollregion
+        page_label.config(text=f"Page {current_page+1} of {len(pdf_images)}")
         canvas.update_idletasks()
         canvas.configure(scrollregion=canvas.bbox("all"))
+        canvas.yview_moveto(0)
 
 def is_camera_running():
     print("Starting camera...")
@@ -39,18 +43,13 @@ def is_camera_running():
     if not cap.isOpened():
         print("Camera failed to start.")
         return False
-    ret, _ = cap.read()
     cap.release()
-    if ret:
-        print("Camera running.")
-        return True
-    else:
-        print("Camera failed to provide frame.")
-        return False
+    print("Camera running.")
+    return True
 
 # --- PDF Loading ---
 def doc_picker():
-    global filename, pdf_images, current_page, scan_job
+    global filename, pdf_images, current_page, scan_job, camera
     filetypes = [("PDF files", "*.pdf")]
     filename = filedialog.askopenfilename(
         title="Select a Document",
@@ -59,21 +58,38 @@ def doc_picker():
     if filename:
         print("PDF selected")
         label.config(text=f"Selected File:\n{filename}")
-        # Check camera before opening PDF
-        if is_camera_running():
-            # start scanning after PDF is selected, before opening
-            if scan_job is None:
-                scan_job = root.after(2000, scan_and_monitor)
-            load_pdf(filename)
-        else:
+        # Start and keep camera open
+        print("Starting camera...")
+        camera = cv2.VideoCapture(0)
+        if not camera.isOpened():
+            print("Camera failed to start.")
             messagebox.showerror("Camera Error", "Could not start camera. Please check your webcam.")
+            camera = None
+            return
+        # Wait for camera to be ready and able to read a frame
+        import time
+        max_attempts = 20
+        for attempt in range(max_attempts):
+            ret, _ = camera.read()
+            if ret:
+                print("Camera running.")
+                break
+            time.sleep(0.1)
+        else:
+            print("Camera failed to provide frame.")
+            messagebox.showerror("Camera Error", "Camera could not provide a frame. Please check your webcam.")
+            camera.release()
+            camera = None
+            return
+        if scan_job is None:
+            scan_job = root.after(2000, scan_and_monitor)
+        load_pdf(filename)
     else:
         label.config(text="No file selected.")
 
 def load_pdf(path):
-    global pdf_images, pdf_labels, current_page
+    global pdf_images, current_page
     clear_pdf_display()
-    current_page = 0
     try:
         doc = fitz.open(path)
         for i, page in enumerate(doc):
@@ -86,10 +102,6 @@ def load_pdf(path):
             img_resized = img.resize((canvas_width, new_height), Image.Resampling.LANCZOS)
             tk_img = ImageTk.PhotoImage(img_resized)
             pdf_images.append(tk_img)
-            lbl = tk.Label(canvas_frame, image=tk_img)
-            pdf_labels.append(lbl)
-            if i == 0:
-                lbl.pack()
         doc.close()
         display_page(0)
     except Exception as e:
@@ -99,31 +111,41 @@ def show_page(page_num):
     display_page(page_num)
 
 def next_page():
-    if current_page + 1 < len(pdf_labels):
+    if current_page + 1 < len(pdf_images):
         show_page(current_page + 1)
 
 def prev_page():
     if current_page - 1 >= 0:
         show_page(current_page - 1)
 
+# --- PDF Closing ---
 def close_pdf():
-    global pdf_labels, pdf_images, current_page, scan_job
+    global pdf_images, current_page, scan_job, camera, canvas_image_id
     clear_pdf_display()
     current_page = 0
     label.config(text="PDF closed due to detected phone/camera.")
     page_label.config(text="")
-    # stop scanning when PDF is closed
+    # Stop scanning when PDF is closed
     if scan_job is not None:
         root.after_cancel(scan_job)
         scan_job = None
+    # Release camera
+    if camera is not None:
+        camera.release()
+        camera = None
 
+# --- Scanning ---
 def scan_and_monitor():
-    if not scan():
+    global camera
+    if camera is None:
+        return
+    # Pass the open camera to scan()
+    if not scan(camera):
         close_pdf()
         messagebox.showwarning("Security Alert", "Phone or camera detected! PDF has been closed.")
     else:
         global scan_job
-        scan_job = root.after(2000, scan_and_monitor)  # check every 2 seconds
+        scan_job = root.after(2000, scan_and_monitor)  # Check every 2 seconds
 
 root = tk.Tk()
 root.title("Document Selector & Viewer")
@@ -146,20 +168,12 @@ scrollbar = tk.Scrollbar(pdf_frame, orient="vertical", command=canvas.yview)
 scrollbar.pack(side="right", fill="y")
 canvas.configure(yscrollcommand=scrollbar.set)
 
-canvas_frame = tk.Frame(canvas)
-canvas.create_window((0, 0), window=canvas_frame, anchor="nw")
-
-def on_canvas_configure(event):
-    canvas.configure(scrollregion=canvas.bbox("all"))
-canvas_frame.bind("<Configure>", on_canvas_configure)
-
-# Mouse wheel scrolling
+# scrolling
 
 def _on_mousewheel(event):
-    # For Windows and MacOS
     canvas.yview_scroll(int(-1*(event.delta/120)), "units")
 canvas.bind_all("<MouseWheel>", _on_mousewheel)
-# For Linux (event.num 4/5)
+
 def _on_mousewheel_linux(event):
     if event.num == 4:
         canvas.yview_scroll(-1, "units")
